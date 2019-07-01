@@ -1,5 +1,5 @@
 # substrate_learning
-记录学习 [substrate](https://github.com/paritytech/substrate) 的地方
+记录学习 [Substrate](https://github.com/paritytech/substrate) 的地方
 
 
 ## 整体概览
