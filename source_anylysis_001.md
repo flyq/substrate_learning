@@ -142,8 +142,7 @@ impl IntoExit for Exit {
 	}
 }
 ```
-接下来调用 `cli::parse_and_execute` ，这个是根据接收到的命令行参数进行不同分支执行的逻辑，其中类型Factory
-
+接下来调用 `cli::parse_and_execute` ，这个是根据接收到的命令行参数进行不同分支执行的逻辑。
 
 
 参考[链接](https://github.com/paritytech/substrate/blob/master/core/cli/src/lib.rs#L169-L239)：
@@ -220,3 +219,112 @@ where
 	}
 }
 ```
+ `parse_and_execute` 函数接受一些参数，包括子命令 `CC` ，命令参数 `RP`，然后通过匹配枚举类型 `CoreParams`，选择不同命令执行分支。
+ ```rust
+/// https://github.com/paritytech/substrate/blob/master/core/cli/src/params.rs#L624-L740
+
+ /// All core commands that are provided by default.
+///
+/// The core commands are split into multiple subcommands and `Run` is the default subcommand. From
+/// the CLI user perspective, it is not visible that `Run` is a subcommand. So, all parameters of
+/// `Run` are exported as main executable parameters.
+#[derive(Debug, Clone)]
+pub enum CoreParams<CC, RP> {
+	/// Run a node.
+	Run(MergeParameters<RunCmd, RP>),
+
+	/// Build a spec.json file, outputing to stdout.
+	BuildSpec(BuildSpecCmd),
+
+	/// Export blocks to a file.
+	ExportBlocks(ExportBlocksCmd),
+
+	/// Import blocks from file.
+	ImportBlocks(ImportBlocksCmd),
+
+	/// Revert chain to the previous state.
+	Revert(RevertCmd),
+
+	/// Remove the whole chain data.
+	PurgeChain(PurgeChainCmd),
+
+	/// Further custom subcommands.
+	Custom(CC),
+}
+
+impl<CC, RP> StructOpt for CoreParams<CC, RP> where
+	CC: StructOpt + GetLogFilter,
+	RP: StructOpt + AugmentClap
+{
+	fn clap<'a, 'b>() -> App<'a, 'b> {
+		RP::augment_clap(
+			RunCmd::augment_clap(
+				CC::clap().unset_setting(AppSettings::SubcommandRequiredElseHelp)
+			)
+		).subcommand(
+			BuildSpecCmd::augment_clap(SubCommand::with_name("build-spec"))
+				.about("Build a spec.json file, outputing to stdout.")
+		)
+		.subcommand(
+			ExportBlocksCmd::augment_clap(SubCommand::with_name("export-blocks"))
+				.about("Export blocks to a file.")
+		)
+		.subcommand(
+			ImportBlocksCmd::augment_clap(SubCommand::with_name("import-blocks"))
+				.about("Import blocks from file.")
+		)
+		.subcommand(
+			RevertCmd::augment_clap(SubCommand::with_name("revert"))
+				.about("Revert chain to the previous state.")
+		)
+		.subcommand(
+			PurgeChainCmd::augment_clap(SubCommand::with_name("purge-chain"))
+				.about("Remove the whole chain data.")
+		)
+	}
+
+	fn from_clap(matches: &::structopt::clap::ArgMatches) -> Self {
+		match matches.subcommand() {
+			("build-spec", Some(matches)) =>
+				CoreParams::BuildSpec(BuildSpecCmd::from_clap(matches)),
+			("export-blocks", Some(matches)) =>
+				CoreParams::ExportBlocks(ExportBlocksCmd::from_clap(matches)),
+			("import-blocks", Some(matches)) =>
+				CoreParams::ImportBlocks(ImportBlocksCmd::from_clap(matches)),
+			("revert", Some(matches)) => CoreParams::Revert(RevertCmd::from_clap(matches)),
+			("purge-chain", Some(matches)) =>
+				CoreParams::PurgeChain(PurgeChainCmd::from_clap(matches)),
+			(_, None) => CoreParams::Run(MergeParameters::from_clap(matches)),
+			_ => CoreParams::Custom(CC::from_clap(matches)),
+		}
+	}
+}
+
+impl<CC, RP> GetLogFilter for CoreParams<CC, RP> where CC: GetLogFilter {
+	fn get_log_filter(&self) -> Option<String> {
+		match self {
+			CoreParams::Run(c) => c.left.get_log_filter(),
+			CoreParams::BuildSpec(c) => c.get_log_filter(),
+			CoreParams::ExportBlocks(c) => c.get_log_filter(),
+			CoreParams::ImportBlocks(c) => c.get_log_filter(),
+			CoreParams::PurgeChain(c) => c.get_log_filter(),
+			CoreParams::Revert(c) => c.get_log_filter(),
+			CoreParams::Custom(c) => c.get_log_filter(),
+		}
+	}
+}
+```
+如果运行 `cargo run \-- --help` ，就能看到对应的子命令。
+```bash
+SUBCOMMANDS:
+    build-spec       Build a spec.json file, outputing to stdout.
+    export-blocks    Export blocks to a file.
+    factory          Manufactures num transactions from Alice to random accounts. Only supported for development or
+                     local testnet.
+    help             Prints this message or the help of the given subcommand(s)
+    import-blocks    Import blocks from file.
+    purge-chain      Remove the whole chain data.
+    revert           Revert chain to the previous state.
+```
+我们把精力放在 `Run(MergeParameters<RunCmd, RP>)`
+

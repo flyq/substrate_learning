@@ -12,4 +12,5 @@
 
 ## 目录
 1. [安装运行 Substrate 链](./run_substrate.md)
-2. [源码分析一](./source_anylysis_001.md)
+2. [源码学习一](./source_anylysis_001.md)
+3. [源码学习二 node-template](./source_anylysis_002.md)
